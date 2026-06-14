@@ -1,6 +1,14 @@
 import pygame
 import random
 import sys
+import os
+
+print(os.getcwd())
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+ARQ_RECORDE = os.path.join(BASE_DIR, "data", "recorde.txt")
+ARQ_RANKING = os.path.join(BASE_DIR, "data", "ranking.txt")
 
 # ─────────────────────────────────────────
 #  CONFIGURAÇÕES GERAIS
@@ -68,6 +76,39 @@ def mostrar_texto_centralizado(tela, texto, fonte, cor, y):
     rect = surf.get_rect(center=(LARGURA // 2, y))
     tela.blit(surf, rect)
 
+def carregar_recorde():
+    try:
+        with open(ARQ_RECORDE, "r") as arquivo:
+            return int(arquivo.read())
+    except:
+        return 0
+
+
+def salvar_recorde(pontuacao):
+    with open(ARQ_RECORDE, "w") as arquivo:
+        arquivo.write(str(pontuacao))
+
+
+def carregar_ranking():
+    try:
+        with open(ARQ_RANKING, "r") as arquivo:
+            return [int(linha.strip()) for linha in arquivo.readlines()]
+    except:
+        return []
+
+
+def salvar_ranking(pontuacao):
+    ranking = carregar_ranking()
+
+    ranking.append(pontuacao)
+
+    ranking.sort(reverse=True)
+
+    ranking = ranking[:5]
+
+    with open(ARQ_RANKING, "w") as arquivo: 
+        for score in ranking:
+            arquivo.write(f"{score}\n")
 
 def tela_inicial(tela, relogio, fonte_grande, fonte_media):
     """Exibe a tela de início e aguarda o jogador pressionar ENTER."""
@@ -88,7 +129,7 @@ def tela_inicial(tela, relogio, fonte_grande, fonte_media):
                     return
 
 
-def tela_game_over(tela, relogio, fonte_grande, fonte_media, pontuacao):
+def tela_game_over(tela, relogio, fonte_grande, fonte_media, pontuacao, tempo):
     """Exibe a tela de Game Over e retorna True para reiniciar ou False para sair."""
     while True:
         tela.fill(CINZA)
@@ -123,6 +164,7 @@ def jogar(tela, relogio, fonte_media):
     proxima   = direcao
     comida    = gerar_comida(cobra)
     pontuacao = 0
+    tempo_inicio = pygame.time.get_ticks()
 
     while True:
         relogio.tick(FPS)
@@ -149,14 +191,34 @@ def jogar(tela, relogio, fonte_media):
                     cobra[0][1] + direcao[1])
 
         # Colisão com as bordas
+        
         if not (0 <= cabeca[0] < COLUNAS and 0 <= cabeca[1] < LINHAS):
-            return pontuacao
 
-        # Colisão com o próprio corpo
-        if cabeca in cobra:
-            return pontuacao
+            recorde = carregar_recorde()
+
+            if pontuacao > recorde:
+                salvar_recorde(pontuacao)
+
+            salvar_ranking(pontuacao)
+
+            tempo_atual = (pygame.time.get_ticks() - tempo_inicio) // 1000
+
+            return pontuacao, tempo_atual
 
         cobra.insert(0, cabeca)
+        if cabeca in cobra[1:]:
+
+            recorde = carregar_recorde()
+
+            if pontuacao > recorde:
+                salvar_recorde(pontuacao)
+
+            salvar_ranking(pontuacao)
+
+            tempo_atual = (pygame.time.get_ticks() - tempo_inicio) // 1000
+
+            return pontuacao, tempo_atual   
+
 
         # Verificar se comeu a comida
         if cabeca == comida:
@@ -174,6 +236,16 @@ def jogar(tela, relogio, fonte_media):
         # HUD — pontuação
         texto_pont = fonte_media.render(f"Pontos: {pontuacao}", True, BRANCO)
         tela.blit(texto_pont, (10, 10))
+
+        tempo_atual = (pygame.time.get_ticks() - tempo_inicio) // 1000
+
+        texto_tempo = fonte_media.render(
+        f"Tempo: {tempo_atual}s",
+        True,
+        BRANCO
+    )
+
+        tela.blit(texto_tempo, (450, 10))
 
         pygame.display.flip()
 
@@ -194,8 +266,8 @@ def main():
     tela_inicial(tela, relogio, fonte_grande, fonte_media)
 
     while True:
-        pontuacao = jogar(tela, relogio, fonte_media)
-        continuar = tela_game_over(tela, relogio, fonte_grande, fonte_media, pontuacao)
+        pontuacao, tempo = jogar(tela, relogio, fonte_media)
+        continuar = tela_game_over(tela, relogio, fonte_grande, fonte_media, pontuacao, tempo)
         if not continuar:
             break
 
